@@ -100,14 +100,8 @@ func main() {
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = buf
-			err := cmd.Run()
+			cmd.Run()
 			fmt.Print(strings.ReplaceAll(buf.String(), curdir+"/", ""))
-			if err != nil {
-				os.Exit(1)
-			}
-			os.Exit(0)
 		}
 	}
-
-	fatal("no command to build", args[0])
 }
