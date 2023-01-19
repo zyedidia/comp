@@ -24,6 +24,19 @@ func existsFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+func execCmd(prog string, args ...string) []byte {
+	cmd := exec.Command(prog, args...)
+	log.Println(cmd)
+	buf := &bytes.Buffer{}
+	cmd.Stdout = buf
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		fatal(err)
+	}
+	return buf.Bytes()
+}
+
 type CompCommand struct {
 	Directory string `json:"directory"`
 	File      string `json:"file"`
@@ -49,6 +62,7 @@ func FindCompDb() (string, string, error) {
 
 func main() {
 	debug := flag.Bool("debug", false, "show debug information")
+	knit := flag.Bool("knit", false, "run knit to generate the compdb")
 
 	flag.Parse()
 	args := flag.Args()
@@ -65,28 +79,36 @@ func main() {
 		fatal("no file to build")
 	}
 
-	name, path, err := FindCompDb()
-	if err != nil {
-		fatal(err)
-	}
-	compdb := filepath.Join(path, name)
+	var data []byte
+	var path string
+	if *knit {
+		path = filepath.Dir(string(execCmd("knit", "-t", "path")))
+		data = execCmd("knit", "-t", "compdb")
+	} else {
+		var name string
+		var err error
+		name, path, err = FindCompDb()
+		if err != nil {
+			fatal(err)
+		}
+		compdb := filepath.Join(path, name)
 
-	log.Println("compdb:", compdb)
+		log.Println("compdb:", compdb)
 
-	data, err := os.ReadFile(compdb)
-	if err != nil {
-		fatal(err)
+		data, err = os.ReadFile(compdb)
+		if err != nil {
+			fatal(err)
+		}
 	}
 
 	var compcmds []CompCommand
-	err = json.Unmarshal(data, &compcmds)
+	err := json.Unmarshal(data, &compcmds)
 	if err != nil {
 		fatal(err)
 	}
 
 	wd, _ := os.Getwd()
 	target, _ := filepath.Rel(filepath.Join(wd, path), filepath.Join(wd, args[0]))
-
 	curdir, _ := filepath.Rel(filepath.Join(wd, path), wd)
 
 	for _, c := range compcmds {
