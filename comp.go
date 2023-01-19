@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func fatal(a ...interface{}) {
@@ -85,17 +87,21 @@ func main() {
 	wd, _ := os.Getwd()
 	target, _ := filepath.Rel(filepath.Join(wd, path), filepath.Join(wd, args[0]))
 
+	curdir, _ := filepath.Rel(filepath.Join(wd, path), wd)
+
 	for _, c := range compcmds {
 		file := filepath.Join(wd, path, c.Directory, c.File)
 		frel, _ := filepath.Rel(filepath.Join(wd, path), file)
 		if target == frel {
 			log.Println(c.Command)
+			buf := &bytes.Buffer{}
 			cmd := exec.Command("sh", "-c", c.Command)
 			cmd.Dir = filepath.Join(wd, path, c.Directory)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
+			cmd.Stderr = buf
 			err := cmd.Run()
+			fmt.Print(strings.ReplaceAll(buf.String(), curdir+"/", ""))
 			if err != nil {
 				os.Exit(1)
 			}
