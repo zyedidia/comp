@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -57,7 +58,7 @@ func FindCompDb() (string, string, error) {
 		}
 		path = filepath.Dir(path)
 	}
-	return "", "", nil
+	return "", "", errors.New("could not find compile_commands.json")
 }
 
 func main() {
