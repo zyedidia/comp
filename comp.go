@@ -11,7 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 )
 
 func fatal(a ...interface{}) {
@@ -84,7 +86,7 @@ func main() {
 	var path string
 	if *knit {
 		path = filepath.Dir(string(execCmd("knit", "-t", "path")))
-		data = execCmd("knit", "-t", "compdb", "all")
+		data = execCmd("knit", "comp", "-t", "compdb", "all")
 	} else {
 		var name string
 		var err error
@@ -112,11 +114,13 @@ func main() {
 	target, _ := filepath.Rel(filepath.Join(wd, path), filepath.Join(wd, args[0]))
 	curdir, _ := filepath.Rel(filepath.Join(wd, path), wd)
 
-	for _, c := range compcmds {
-		file := filepath.Join(wd, path, c.Directory, c.File)
-		frel, _ := filepath.Rel(filepath.Join(wd, path), file)
-		if target == frel {
-			log.Println(c.Command)
+	lock := &sync.Mutex{}
+	wg := sync.WaitGroup{}
+
+	worker := func(cmdchan chan CompCommand) {
+		defer wg.Done()
+
+		for c := range cmdchan {
 			buf := &bytes.Buffer{}
 			cmd := exec.Command("sh", "-c", c.Command)
 			cmd.Dir = filepath.Join(wd, path, c.Directory)
@@ -124,7 +128,29 @@ func main() {
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = buf
 			cmd.Run()
+			lock.Lock()
 			fmt.Print(strings.ReplaceAll(buf.String(), curdir+"/", ""))
+			lock.Unlock()
 		}
 	}
+
+	cmdchan := make(chan CompCommand)
+
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go worker(cmdchan)
+	}
+
+	for _, c := range compcmds {
+		file := filepath.Join(wd, path, c.Directory, c.File)
+		frel, _ := filepath.Rel(filepath.Join(wd, path), file)
+		if target == frel {
+			log.Println(c.Command)
+			cmdchan <- c
+		}
+	}
+
+	close(cmdchan)
+
+	wg.Wait()
 }
