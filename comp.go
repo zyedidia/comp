@@ -86,7 +86,7 @@ func main() {
 	var path string
 	if *knit {
 		path = filepath.Dir(string(execCmd("knit", "-t", "path")))
-		data = execCmd("knit", "comp", "-t", "compdb", "all")
+		data = execCmd("knit", "comp", "-r", "-t", "compdb", "all")
 	} else {
 		var name string
 		var err error
